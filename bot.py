@@ -9,8 +9,7 @@ from telegram.request import HTTPXRequest
 CHANNEL_USERNAME = "@Vanila_cards"
 ADMIN_ID = 8508012498
 
-BOT_TOKEN = "এখানে বট টুকেন দিন"
-
+BOT_TOKEN = "7839522620:AAGmaOq_kfXTmulMlLCTE_Dgoe6VYyGSOHI"
 USER_FILE = os.path.join(os.path.dirname(__file__), "users.txt")
 
 logging.basicConfig(
