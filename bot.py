@@ -1,16 +1,14 @@
 import re
 import os
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, CopyTextButton
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from telegram.request import HTTPXRequest
 
 # ===================== Configuration =====================
-CHANNEL_USERNAME = "@card_chaker_bot"
+CHANNEL_USERNAME = "@Vanila_cards"
 ADMIN_ID = 8508012498
 
-# Render-এ Environment Variable থেকে টোকেন পড়া হবে
-# অথবা সরাসরি এখানে টোকেন বসান: BOT_TOKEN = "আপনার টোকেন"
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "7839522620:AAGmaOq_kfXTmulMlLCTE_Dgoe6VYyGSOHI")
 
 USER_FILE = os.path.join(os.path.dirname(__file__), "users.txt")
@@ -69,7 +67,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
         [
             InlineKeyboardButton("💳 Buy Card", url="https://t.me/vanila_Gc_bot"),
-            InlineKeyboardButton("🔍 Card Chake", callback_data="card_check")
+            InlineKeyboardButton("🔍 Card Check", callback_data="card_check")
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -79,43 +77,31 @@ async def card_check_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     query = update.callback_query
     await query.answer()
 
-    formats = [
-        "2222222222222222:22:22:222",
-        "3333333333333333:33/33:333",
-        "4444444444444444/44/44/444",
-        "5555555555555555 55/55 555",
-        "6666666666666666 66 66 666",
-    ]
-    keyboard = []
-    for fmt in formats:
-        button = InlineKeyboardButton(text=f"📋 {fmt}", copy_text=CopyTextButton(text=fmt))
-        keyboard.append([button])
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text(
-        "Welcome! Please provide your card details in a standard format:",
-        reply_markup=reply_markup,
+    formats_text = (
+        "✅ Welcome! Please provide your card details in one of these formats:\n\n"
+        "<code>1111111111111111:11:11:111</code>\n"
+        "<code>2222222222222222:22/22:222</code>\n"
+        "<code>3333333333333333/33/33/333</code>\n"
+        "<code>4444444444444444 44/44 444</code>\n"
+        "<code>5555555555555555 55 55 555</code>\n\n"
+        "👆 Tap on any format to copy it, then send your card details."
     )
+    await query.edit_message_text(formats_text, parse_mode="HTML")
 
 async def send_card_formats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     save_user(user_id)
 
-    formats = [
-        "2222222222222222:22:22:222",
-        "3333333333333333:33/33:333",
-        "4444444444444444/44/44/444",
-        "5555555555555555 55/55 555",
-        "6666666666666666 66 66 666",
-    ]
-    keyboard = []
-    for fmt in formats:
-        button = InlineKeyboardButton(text=f"📋 {fmt}", copy_text=CopyTextButton(text=fmt))
-        keyboard.append([button])
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(
-        "Welcome! Please provide your card details in a standard format:",
-        reply_markup=reply_markup,
+    formats_text = (
+        "✅ Welcome! Please provide your card details in one of these formats:\n\n"
+        "<code>1111111111111111:11:11:111</code>\n"
+        "<code>2222222222222222:22/22:222</code>\n"
+        "<code>3333333333333333/33/33/333</code>\n"
+        "<code>4444444444444444 44/44 444</code>\n"
+        "<code>5555555555555555 55 55 555</code>\n\n"
+        "👆 Tap on any format to copy it, then send your card details."
     )
+    await update.message.reply_text(formats_text, parse_mode="HTML")
 
 CARD_PATTERN = re.compile(r'^\d{16}([:/\s])\d{2}([:/\s])\d{2}([:/\s])\d{3}$')
 
@@ -129,7 +115,6 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     user_id = update.effective_user.id
     save_user(user_id)
 
-    # Admin broadcast handling
     if user_id == ADMIN_ID and awaiting_broadcast:
         all_users = get_all_users()
         success_count = 0
@@ -151,7 +136,6 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         return
 
-    # Normal message handling (card format check)
     if CARD_PATTERN.match(user_input):
         member = await is_user_member(user_id, context)
         if not member:
@@ -215,8 +199,7 @@ def main() -> None:
     if not token or token == "এখানে বট টুকেন দিন":
         raise RuntimeError(
             "BOT_TOKEN সেট করা হয়নি। "
-            "Render-এ Environment Variable-এ BOT_TOKEN দিন অথবা "
-            "bot.py ফাইলে সরাসরি টোকেন বসান।"
+            "Render-এ Environment Variable-এ BOT_TOKEN দিন।"
         )
 
     request = HTTPXRequest(
