@@ -1,7 +1,7 @@
 import re
 import os
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, CopyTextButton
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from telegram.request import HTTPXRequest
 
@@ -85,13 +85,22 @@ async def card_check_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     ]
     keyboard = []
     for fmt in formats:
-        button = InlineKeyboardButton(text=f"📋 {fmt}", copy_text=CopyTextButton(text=fmt))
+        # callback_data দিয়ে ফরম্যাট পাঠানো হচ্ছে
+        button = InlineKeyboardButton(text=f"📋 {fmt}", callback_data=f"copy_{fmt}")
         keyboard.append([button])
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(
         "Welcome! Please provide your card details in a standard format:",
         reply_markup=reply_markup,
     )
+
+async def copy_format_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """ইউজার যখন কোনো ফরম্যাট বাটনে ক্লিক করবে, তখন সেই ফরম্যাটটি মেসেজ হিসেবে দেখাবে (কপি করার সুবিধার্থে)"""
+    query = update.callback_query
+    await query.answer()
+    if query.data.startswith("copy_"):
+        fmt = query.data[5:]  # "copy_222..." থেকে আসল ফরম্যাট
+        await query.message.reply_text(f"✅ আপনি নিচের ফরম্যাটটি কপি করে ব্যবহার করতে পারেন:\n`{fmt}`", parse_mode="Markdown")
 
 async def send_card_formats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
@@ -106,7 +115,7 @@ async def send_card_formats(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     ]
     keyboard = []
     for fmt in formats:
-        button = InlineKeyboardButton(text=f"📋 {fmt}", copy_text=CopyTextButton(text=fmt))
+        button = InlineKeyboardButton(text=f"📋 {fmt}", callback_data=f"copy_{fmt}")
         keyboard.append([button])
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
@@ -177,7 +186,7 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 # ===================== Main =====================
 def main() -> None:
     if not BOT_TOKEN or BOT_TOKEN == "এখানে বট টুকেন দিন":
-        raise RuntimeError("BOT_TOKEN is not set. Please replace 'এখানে বট টুকেন দিন' with your actual bot token.")
+        raise RuntimeError("BOT_TOKEN is not set. Please replace with your actual bot token.")
 
     request = HTTPXRequest(
         connect_timeout=30.0,
@@ -191,6 +200,7 @@ def main() -> None:
     app.add_handler(CommandHandler("card_chake", send_card_formats))
     app.add_handler(CommandHandler("admin", admin_command))
     app.add_handler(CallbackQueryHandler(card_check_callback, pattern="^card_check$"))
+    app.add_handler(CallbackQueryHandler(copy_format_callback, pattern="^copy_"))  # নতুন হ্যান্ডলার
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
 
     logger.info("Bot started, polling for updates...")
