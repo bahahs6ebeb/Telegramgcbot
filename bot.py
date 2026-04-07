@@ -1,15 +1,18 @@
 import re
 import os
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, CopyTextButton
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from telegram.request import HTTPXRequest
 
 # ===================== Configuration =====================
-CHANNEL_USERNAME = "@Vanila_cards"
+CHANNEL_USERNAME = "@card_chaker_bot"
 ADMIN_ID = 8508012498
 
-BOT_TOKEN = "7839522620:AAGmaOq_kfXTmulMlLCTE_Dgoe6VYyGSOHI"
+# Render-এ Environment Variable থেকে টোকেন পড়া হবে
+# অথবা সরাসরি এখানে টোকেন বসান: BOT_TOKEN = "আপনার টোকেন"
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "7839522620:AAGmaOq_kfXTmulMlLCTE_Dgoe6VYyGSOHI")
+
 USER_FILE = os.path.join(os.path.dirname(__file__), "users.txt")
 
 logging.basicConfig(
@@ -57,7 +60,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "💠 Dear users!\n\n"
         "🚀 JOIN OUR OFFICIAL BOT FIRST!\n"
         "🤖 Buy Cards Instantly:\n"
-        "👉 @vanila_Gc_bot— Type /start\n"
+        "👉 @vanila_Gc_bot — Type /start\n"
         "🔔 Get Instant Support:\n"
         "👉 https://t.me/Vanila_cards\n"
         "⚡ Early Join = Early Access\n"
@@ -85,22 +88,13 @@ async def card_check_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     ]
     keyboard = []
     for fmt in formats:
-        # callback_data দিয়ে ফরম্যাট পাঠানো হচ্ছে
-        button = InlineKeyboardButton(text=f"📋 {fmt}", callback_data=f"copy_{fmt}")
+        button = InlineKeyboardButton(text=f"📋 {fmt}", copy_text=CopyTextButton(text=fmt))
         keyboard.append([button])
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(
         "Welcome! Please provide your card details in a standard format:",
         reply_markup=reply_markup,
     )
-
-async def copy_format_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """ইউজার যখন কোনো ফরম্যাট বাটনে ক্লিক করবে, তখন সেই ফরম্যাটটি মেসেজ হিসেবে দেখাবে (কপি করার সুবিধার্থে)"""
-    query = update.callback_query
-    await query.answer()
-    if query.data.startswith("copy_"):
-        fmt = query.data[5:]  # "copy_222..." থেকে আসল ফরম্যাট
-        await query.message.reply_text(f"✅ আপনি নিচের ফরম্যাটটি কপি করে ব্যবহার করতে পারেন:\n`{fmt}`", parse_mode="Markdown")
 
 async def send_card_formats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
@@ -115,7 +109,7 @@ async def send_card_formats(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     ]
     keyboard = []
     for fmt in formats:
-        button = InlineKeyboardButton(text=f"📋 {fmt}", callback_data=f"copy_{fmt}")
+        button = InlineKeyboardButton(text=f"📋 {fmt}", copy_text=CopyTextButton(text=fmt))
         keyboard.append([button])
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
@@ -125,8 +119,12 @@ async def send_card_formats(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 CARD_PATTERN = re.compile(r'^\d{16}([:/\s])\d{2}([:/\s])\d{2}([:/\s])\d{3}$')
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global awaiting_broadcast
+
+    if not update.message or not update.message.text:
+        return
+
     user_input = update.message.text.strip()
     user_id = update.effective_user.id
     save_user(user_id)
@@ -168,6 +166,34 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     else:
         await update.message.reply_text("❌ Invalid format")
 
+async def handle_broadcast_media(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    global awaiting_broadcast
+
+    if not update.message:
+        return
+
+    user_id = update.effective_user.id
+
+    if user_id == ADMIN_ID and awaiting_broadcast:
+        all_users = get_all_users()
+        success_count = 0
+        fail_count = 0
+        for uid in all_users:
+            try:
+                await context.bot.copy_message(
+                    chat_id=uid,
+                    from_chat_id=update.effective_chat.id,
+                    message_id=update.message.message_id
+                )
+                success_count += 1
+            except Exception as e:
+                logger.error(f"Broadcast failed for {uid}: {e}")
+                fail_count += 1
+        awaiting_broadcast = False
+        await update.message.reply_text(
+            f"✅ Broadcast complete!\nSucceeded: {success_count}\nFailed: {fail_count}"
+        )
+
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     if user_id != ADMIN_ID:
@@ -185,8 +211,13 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 # ===================== Main =====================
 def main() -> None:
-    if not BOT_TOKEN or BOT_TOKEN == "এখানে বট টুকেন দিন":
-        raise RuntimeError("BOT_TOKEN is not set. Please replace with your actual bot token.")
+    token = BOT_TOKEN.strip()
+    if not token or token == "এখানে বট টুকেন দিন":
+        raise RuntimeError(
+            "BOT_TOKEN সেট করা হয়নি। "
+            "Render-এ Environment Variable-এ BOT_TOKEN দিন অথবা "
+            "bot.py ফাইলে সরাসরি টোকেন বসান।"
+        )
 
     request = HTTPXRequest(
         connect_timeout=30.0,
@@ -194,14 +225,17 @@ def main() -> None:
         write_timeout=30.0,
         pool_timeout=30.0
     )
-    app = Application.builder().token(BOT_TOKEN).request(request).build()
+    app = Application.builder().token(token).request(request).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("card_chake", send_card_formats))
     app.add_handler(CommandHandler("admin", admin_command))
     app.add_handler(CallbackQueryHandler(card_check_callback, pattern="^card_check$"))
-    app.add_handler(CallbackQueryHandler(copy_format_callback, pattern="^copy_"))  # নতুন হ্যান্ডলার
-    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
+    app.add_handler(MessageHandler(
+        (filters.PHOTO | filters.VIDEO | filters.Document.ALL) & ~filters.COMMAND,
+        handle_broadcast_media
+    ))
 
     logger.info("Bot started, polling for updates...")
     app.run_polling()
